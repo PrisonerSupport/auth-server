@@ -5,7 +5,7 @@
 import { BinaryLike, pbkdf2, randomBytes, randomInt } from 'crypto';
 import { escape, Pool } from 'mysql2/promise';
 import { constants } from './constants';
-import * as Errors from '../errors';
+import * as Errors from './errors';
 
 // ---- TYPE INTERFACES ----
 interface User {

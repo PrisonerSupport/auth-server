@@ -39,7 +39,7 @@ import * as Errors from './errors';
  
  // Authenticate
 
- auth.post('/:userId', (req: Request, res: Response, next: any) => {
+ auth.post('/:userId', async (req: Request, res: Response, next: any) => {
      if (!req.body) {
          res.send("No payload sent with request");
      }
@@ -54,7 +54,7 @@ import * as Errors from './errors';
      console.log('authenticating %s', username);
 
      try {
-         let authentication = authenticate(username, pass);
+         let authentication = await authenticate(username, pass);
          if (authentication) {
              res.status(200)
              console.log("%s authenticated", username)

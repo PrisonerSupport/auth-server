@@ -3,7 +3,7 @@
  */
 
 import { createPool } from 'mysql2';
-import * as Errors from '../errors';
+import * as Errors from './errors';
 import { memoize } from 'lodash'
 
 
