@@ -5,10 +5,11 @@ CREATE DATABASE users;
 USE users;
 
 CREATE TABLE user (
-    _id INT, 
-    name VARCHAR(50), 
-    email VARCHAR(50), 
-    hash BINARY(32), 
-    salt BINARY(16), 
-    iterations INT
+    username VARCHAR(20) NOT NULL, 
+    name VARCHAR(100), 
+    email VARCHAR(50) NOT NULL, 
+    hash BINARY(32) NOT NULL, 
+    salt BINARY(16) NOT NULL, 
+    iterations INT NOT NULL
+    PRIMARY KEY (username)
 );

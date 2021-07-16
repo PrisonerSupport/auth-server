@@ -4,38 +4,12 @@
  *     https://github.com/expressjs/express/blob/master/examples/auth/index.js
  */
 
+import express, { Request, Response } from 'express';
+
 import { authenticate } from './db_utils';
-import { Request, Response } from 'express';
 import * as Errors from './errors';
 
- var express = require('../..');
- var session = require('express-session');
- 
- var auth = module.exports = express()
- 
- // config -- TODO: Add configuration parameters to auth
- 
- // middleware
- 
- auth.use(express.urlencoded({ extended: false }));
- auth.use(session({
-     resave: false,
-     saveUninitialized: false,
-     secret: 'secret'
- }));
-
- // Session-persisted message middleware
- 
- auth.use(function(req: any, res: any, next: any){
-     var err = req.session.error;
-     var msg = req.session.success;
-     delete req.session.error;
-     delete req.session.success;
-     res.locals.message = '';
-     if (err) res.locals.message = '<p class="msg error">' + err + '</p>';
-     if (msg) res.locals.message = '<p class="msg success">' + msg + '</p>';
-     next();
- });
+ let auth = express()
  
  // Authenticate
 
@@ -45,6 +19,7 @@ import * as Errors from './errors';
      }
 
      if (!req.body.hasOwnProperty('password')) {
+         res.status(401);
          res.send("Payload does not contain a password");
      }
 
@@ -56,7 +31,7 @@ import * as Errors from './errors';
      try {
          let authentication = await authenticate(username, pass);
          if (authentication) {
-             res.status(200)
+             res.status(200);
              console.log("%s authenticated", username)
              res.send("User authenticated")
          } else {
@@ -75,7 +50,15 @@ import * as Errors from './errors';
         throw err;
      }
  })
- 
-// Pass up the router
 
- export default auth;
+ // User insertion and deletion
+auth.put('/:userId', async (req: Request, res: Response, next: any) => {
+
+    if (!req.body) {
+        res.status(402);
+        res.send("No payload sent with request");
+    }
+    
+
+
+})
