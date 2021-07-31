@@ -31,25 +31,25 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserByUsername = exports.insertUser = exports.authenticate = void 0;
+exports.getUserByUserName = exports.deleteUser = exports.editUserInfo = exports.insertUser = exports.authenticate = void 0;
 const crypto_1 = require("crypto");
-const promise_1 = require("mysql2/promise");
-const constants_1 = require("./constants");
 const Errors = __importStar(require("./errors"));
 // ---- HASHING LOGIC ----
 function _hashAndSalt(password, salt = crypto_1.randomBytes(16), iterations = crypto_1.randomInt(80000, 100000)) {
-    let hash = Buffer.alloc(32); // Allocate default buffer, TODO: this feels janky
-    crypto_1.pbkdf2(password, salt, iterations, 32, 'sha256', (err, derivedKey) => {
-        if (err)
-            throw err;
-        hash = derivedKey;
+    return __awaiter(this, void 0, void 0, function* () {
+        // Generate a hash from the salt and iteration count
+        let hash = yield new Promise((resolve, reject) => crypto_1.pbkdf2(password, salt, iterations, 32, 'sha256', (err, derivedKey) => {
+            if (err)
+                reject(err);
+            resolve(derivedKey);
+        }));
+        // Return a dictionary of attributes for storage in db
+        return {
+            'hash': hash,
+            'salt': salt,
+            'iterations': iterations
+        };
     });
-    // Return a dictionary of attributes for storage in db
-    return {
-        'hash': hash,
-        'salt': salt,
-        'iterations': iterations
-    };
 }
 // ---- DB QUERY TOOLS ----
 /**
@@ -59,82 +59,120 @@ function _hashAndSalt(password, salt = crypto_1.randomBytes(16), iterations = cr
  * @param connection - the pool connection for the user database.
  * @returns the first match for the given username in the database.
  */
-function getUserByUsername(_id, connection = constants_1.constants.USER_DB_POOL.promise()) {
+function getUserByUserName(username, connection) {
     return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const [rows, fields] = yield connection.execute('SELECT * FROM `user` WHERE `_id` = ?', [promise_1.escape(_id)]);
-            if (!rows.length)
-                throw new Errors.NotFoundError(`No entry for user ${_id} in the authorization DB.`);
-            // Return as User
-            return rows[0];
+        const [rows, _] = yield connection.query('SELECT * FROM `user` WHERE `username` = ?', [username]);
+        // If we have no rows returned to us then report that the user wasn't found
+        if (!rows.length) {
+            throw new Errors.NotFoundError(`No entry for user ${username} in the authorization DB.`);
         }
-        catch (err) {
-            throw err;
-        }
+        // Return as User
+        return rows[0];
     });
 }
-exports.getUserByUsername = getUserByUsername;
+exports.getUserByUserName = getUserByUserName;
 /**
  * Authenticates a user's password.
  *
- * @param _id - the username value of the desired user.
+ * @param username - the username value of the desired user.
  * @param password - the proposed password for the user.
  * @param connection - optional connection for debugging use.
  * @returns true if the password matches the stored password for the user and false otherwise.
  */
-function authenticate(_id, password, connection = constants_1.constants.USER_DB_POOL.promise()) {
+function authenticate(username, password, connection) {
     return __awaiter(this, void 0, void 0, function* () {
-        try {
-            let user = yield getUserByUsername(_id, connection = connection);
-            let hash = _hashAndSalt(password, user.salt, user.iterations);
-            if (hash.hash == user.hash) {
-                return true;
-            }
-            return false;
-        }
-        catch (err) {
-            throw err;
-        }
+        let user = yield getUserByUserName(username, connection = connection);
+        let hash = yield _hashAndSalt(password, user.salt, user.iterations);
+        return Buffer.compare(hash.hash, user.hash) == 0;
     });
 }
 exports.authenticate = authenticate;
 /**
  * Creates an entry for a new user in the DB.
  *
- * @param _id - the username value of the new user.
+ * @param username - the username value of the new user.
  * @param name - the name of the new user.
  * @param password - the password for the new user.
  */
-function insertUser(_id, name, email, password, connection = constants_1.constants.USER_DB_POOL.promise()) {
+function insertUser(username, name, email, password, connection) {
     return __awaiter(this, void 0, void 0, function* () {
-        try {
-            // Check if the user exists
-            yield getUserByUsername(_id, connection = connection);
-            // If user exists then throw back an error
-            throw new Errors.DuplicateEntryError(`Username ${_id} already exists in database.`);
-        }
-        catch (err) {
-            if (err.name !== Errors.NotFoundError.name) {
-                throw err;
-            }
-            // User doesn't exist, generate hash
-            var generatedPass = _hashAndSalt(password);
-            var user = {
-                '_id': promise_1.escape(_id),
-                'name': promise_1.escape(name),
-                'email': promise_1.escape(email),
-                'hash': generatedPass.hash,
-                'salt': generatedPass.salt,
-                'iterations': generatedPass.iterations
-            };
-            try {
-                yield connection.execute('INSERT INTO `user` SET ?', [user]);
-            }
-            catch (err) {
-                console.log(`Failed to insert ${_id}.`);
-                throw err;
-            }
+        // User doesn't exist, generate hash
+        let generatedPass = yield _hashAndSalt(password);
+        let user = {
+            username: username,
+            name: name,
+            email: email,
+            hash: generatedPass.hash,
+            salt: generatedPass.salt,
+            iterations: generatedPass.iterations
+        };
+        const [result, _] = yield connection.query('INSERT IGNORE INTO `user` SET ?', [user]);
+        if (result.affectedRows == 0) {
+            throw new Errors.DuplicateEntryError(`Entry for ${username} already exists.`);
         }
     });
 }
 exports.insertUser = insertUser;
+/**
+ * Edit an existing user's information. Only edit information that has an argument passed in for it.
+ *
+ * @param username - the current username of the entry to be edited
+ * @param newUsername - the new username to replace in the entry
+ * @param name - the new name to replace in the entry
+ * @param email - the new email to replace in the entry
+ * @param password - the new password to replace in the entry
+ * @param connection - the DB pool to target
+ */
+function editUserInfo(username, newUsername, name, email, password, connection) {
+    return __awaiter(this, void 0, void 0, function* () {
+        // Return immediately if nothing to change
+        if (newUsername == null
+            && name == null
+            && email == null
+            && password == null) {
+            console.log('nothing to edit');
+            return;
+        }
+        // Retrieve existing entry by the id of the new entry
+        const currentEntry = yield getUserByUserName(username, connection = connection);
+        // Only rehash the password if the password field has been submitted
+        let hash = password !== null ? yield _hashAndSalt(password, currentEntry.salt, currentEntry.iterations)
+            : { hash: currentEntry.hash, salt: currentEntry.salt, iterations: currentEntry.iterations };
+        let newEntry = {
+            username: newUsername !== null ? newUsername : username,
+            name: name !== null ? name : currentEntry.name,
+            email: email !== null ? email : currentEntry.email,
+            hash: hash.hash,
+            salt: hash.salt,
+            iterations: hash.iterations
+        };
+        let [result, _] = yield connection.query('UPDATE `user` SET ? WHERE `username` = ?', [newEntry, newEntry.username]);
+        // The 'changedRows' attribute isn't available in ResultSetHeader interface for some reason
+        let changedRows = result.changedRows;
+        if (changedRows > 1) {
+            console.log(`Updated ${result.changedRows} rows. Should only update 1 row.`);
+            throw new Errors.DuplicateEntryError(`Found and updated duplicate entries for username: ${username}`);
+        }
+        else if (changedRows == 0) {
+            throw new Errors.NotFoundError(`No user found to edit with username ${username}`);
+        }
+    });
+}
+exports.editUserInfo = editUserInfo;
+/**
+ * Delete a user if that user exists.
+ *
+ * @param username - the username of the user to be deleted
+ * @param connection - the DB pool to target
+ */
+function deleteUser(username, connection) {
+    return __awaiter(this, void 0, void 0, function* () {
+        // This query should return a ResultSetHeader every time
+        const [result, _] = yield connection.query('DELETE FROM `user` WHERE `username` = ?', [username]);
+        // Check to see whether we have actually deleted a row, if not throw NotFoundError
+        if (result.affectedRows == 0) {
+            throw new Errors.NotFoundError(`No username ${username} exists to delete.`);
+        }
+    });
+}
+exports.deleteUser = deleteUser;

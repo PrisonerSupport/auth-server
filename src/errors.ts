@@ -12,7 +12,7 @@ class NotFoundError extends Error {
 class DuplicateEntryError extends Error {
     constructor(message: string) {
         super(message);
-        this.name = "DuplicateUserError";
+        this.name = "DuplicateEntryError";
     }
 }
 

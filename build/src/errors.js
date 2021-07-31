@@ -14,7 +14,7 @@ exports.NotFoundError = NotFoundError;
 class DuplicateEntryError extends Error {
     constructor(message) {
         super(message);
-        this.name = "DuplicateUserError";
+        this.name = "DuplicateEntryError";
     }
 }
 exports.DuplicateEntryError = DuplicateEntryError;

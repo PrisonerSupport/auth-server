@@ -23,12 +23,17 @@ var __importStar = (this && this.__importStar) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.constants = void 0;
-const mysql2_1 = require("mysql2");
+const promise_1 = require("mysql2/promise");
 const Errors = __importStar(require("./errors"));
 const lodash_1 = require("lodash");
+/**
+ * Helper to grab the env variable for the database password or throw error if it doesn't exist
+ *
+ * @returns the environment variable containing the password for the database
+ */
 function getAuthDBPassword() {
     if (process.env.AUTHDBPASS == undefined) {
-        throw new Errors.NotFoundError('Environment variable RESOURCEDBPASS not found.');
+        throw new Errors.NotFoundError('Environment variable AUTHDBPASS not found.');
     }
     return process.env.AUTHDBPASS;
 }
@@ -37,11 +42,15 @@ function getAuthDBPassword() {
  */
 const cachedGetAuthDBPassword = lodash_1.memoize(getAuthDBPassword);
 exports.constants = {
-    USER_DB_POOL: mysql2_1.createPool({
+    /**
+     * We keep the pool as a constant since we want it to always be running from the onset of the script
+     */
+    USER_DB_POOL: promise_1.createPool({
         connectionLimit: 10,
         host: 'localhost',
-        user: 'webserver',
-        password: cachedGetAuthDBPassword(),
-        database: 'users'
+        user: 'authserver',
+        password: 'dummy',
+        database: 'users',
+        namedPlaceholders: true
     }),
 };
